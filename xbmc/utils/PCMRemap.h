@@ -122,10 +122,10 @@ protected:
   CStdString         PCMLayoutStr(enum PCMLayout ename);
 
   void               CheckBufferSize(int size);
-  void               ProcessInput(void* data, void* out, unsigned int samples, float gain);
-  void               AddGain(float* buf, unsigned int samples, float gain);
+  void               ProcessInput(void* data, void* out, unsigned int samples, bool direct);
+  void               ProcessGain(float* buf, unsigned int samples, float gain);
   void               ProcessLimiter(unsigned int samples, float gain);
-  void               ProcessOutput(void* out, unsigned int samples, float gain);
+  void               ProcessOutput(void* out, unsigned int samples, bool direct);
 
 public:
 
@@ -135,8 +135,8 @@ public:
   void Reset();
   enum PCMChannels *SetInputFormat (unsigned int channels, enum PCMChannels *channelMap, unsigned int sampleSize, unsigned int sampleRate);
   void SetOutputFormat(unsigned int channels, enum PCMChannels *channelMap, bool ignoreLayout = false);
-  void Remap(void *data, void *out, unsigned int samples, long drc);
-  void Remap(void *data, void *out, unsigned int samples, float gain = 1.0f);
+  void Remap(void *data, void *out, unsigned int samples, long drc, long volume);
+  void Remap(void *data, void *out, unsigned int samples, float gain = 1.0f, float attenuation = 1.0f);
   bool CanRemap();
   int  InBytesToFrames (int bytes );
   int  FramesToOutBytes(int frames);

@@ -29,6 +29,7 @@
 #include "MathUtils.h"
 #include "PCMRemap.h"
 #include "utils/log.h"
+#include "settings/Settings.h"
 #include "settings/GUISettings.h"
 #include "settings/AdvancedSettings.h"
 #ifdef _WIN32
@@ -513,17 +514,23 @@ void CPCMRemap::SetOutputFormat(unsigned int channels, enum PCMChannels *channel
   m_holdCounter = 0;
 }
 
-void CPCMRemap::Remap(void *data, void *out, unsigned int samples, long drc)
+void CPCMRemap::Remap(void *data, void *out, unsigned int samples, long drc, long volume)
 {
   float gain = 1.0f;
   if (drc > 0)
     gain = pow(10.0f, (float)drc / 2000.0f);
 
-  Remap(data, out, samples, gain);
+  float attenuation = 1.0f;
+  if (volume <= VOLUME_MINIMUM)
+    attenuation = 0.0f;
+  else if (volume < VOLUME_MAXIMUM)
+    attenuation = pow(10, (float)volume / 2000.f);
+
+  Remap(data, out, samples, gain, attenuation);
 }
 
 /* remap the supplied data into out, which must be pre-allocated */
-void CPCMRemap::Remap(void *data, void *out, unsigned int samples, float gain /*= 1.0f*/)
+void CPCMRemap::Remap(void *data, void *out, unsigned int samples, float gain /*= 1.0f*/, float attenuation /*= 1.0f*/)
 {
   CheckBufferSize(samples * m_outChannels * sizeof(float));
 
@@ -533,10 +540,13 @@ void CPCMRemap::Remap(void *data, void *out, unsigned int samples, float gain /*
   //set intermediate buffer to 0
   memset(m_buf, 0, m_bufsize);
 
-  ProcessInput(data, out, samples, gain);
-  AddGain(m_buf, samples * m_outChannels, gain);
+  bool direct = (gain == 1.0f) && (attenuation == 1.0f);
+
+  ProcessInput(data, out, samples, direct);
+  ProcessGain(m_buf, samples * m_outChannels, gain);
   ProcessLimiter(samples, gain);
-  ProcessOutput(out, samples, gain);
+  ProcessGain(m_buf, samples * m_outChannels, attenuation);
+  ProcessOutput(out, samples, direct);
 }
 
 void CPCMRemap::CheckBufferSize(int size)
@@ -548,7 +558,7 @@ void CPCMRemap::CheckBufferSize(int size)
   }
 }
 
-void CPCMRemap::ProcessInput(void* data, void* out, unsigned int samples, float gain)
+void CPCMRemap::ProcessInput(void* data, void* out, unsigned int samples, bool direct)
 {
   for (unsigned int ch = 0; ch < m_outChannels; ch++)
   {
@@ -556,7 +566,7 @@ void CPCMRemap::ProcessInput(void* data, void* out, unsigned int samples, float 
     if (info->channel == PCM_INVALID)
       continue;
 
-    if (info->copy && gain == 1.0f) //do direct copy
+    if (info->copy && direct) //do direct copy
     {
       uint8_t* src = (uint8_t*)data + info->in_offset;
       uint8_t* dst = (uint8_t*)out  + ch * m_inSampleSize;
@@ -586,7 +596,7 @@ void CPCMRemap::ProcessInput(void* data, void* out, unsigned int samples, float 
   }
 }
 
-void CPCMRemap::AddGain(float* buf, unsigned int samples, float gain)
+void CPCMRemap::ProcessGain(float* buf, unsigned int samples, float gain)
 {
   if (gain != 1.0f) //needs a gain change
   {
@@ -695,7 +705,7 @@ void CPCMRemap::ProcessLimiter(unsigned int samples, float gain)
   }
 }
 
-void CPCMRemap::ProcessOutput(void* out, unsigned int samples, float gain)
+void CPCMRemap::ProcessOutput(void* out, unsigned int samples, bool direct)
 {
   //copy from intermediate buffer to output
   for (unsigned int ch = 0; ch < m_outChannels; ch++)
@@ -704,7 +714,7 @@ void CPCMRemap::ProcessOutput(void* out, unsigned int samples, float gain)
     if (info->channel == PCM_INVALID)
       continue;
 
-    if (!info->copy || gain != 1.0f)
+    if (!info->copy || !direct)
     {
       float* src = m_buf + ch;
       uint8_t* dst = (uint8_t*)out + ch * m_inSampleSize;

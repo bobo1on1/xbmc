@@ -302,7 +302,7 @@ unsigned int CIOSAudioRenderer::AddPackets(const void* data, DWORD len)
 
     uint8_t outData[length];
     // remap the audio channels using the frame count
-    m_remap.Remap((void*)data, outData, frames, m_drc);
+    m_remap.Remap((void*)data, outData, frames, m_drc, VOLUME_MAXIMUM);
 
     status = m_Buffer->Write(outData, length);
     // return the number of input bytes we accepted

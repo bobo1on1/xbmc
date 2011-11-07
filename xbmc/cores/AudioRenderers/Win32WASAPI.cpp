@@ -445,10 +445,6 @@ unsigned int CWin32WASAPI::AddPackets(const void* data, unsigned int len)
     // Write data into the buffer
     AddDataToBuffer((unsigned char*)data, uiSrcBytesToWrite, pBuffer);
 
-    //Adjust the volume if necessary.
-    if(!m_bPassthrough)
-      m_pcmAmplifier.DeAmplify((short*)pBuffer, uiBytesToWrite / 2);
-
     // Release the buffer
     if (FAILED(hr=m_pRenderClient->ReleaseBuffer(uiBytesToWrite/m_uiBytesPerFrame, dwFlags)))
       CLog::Log(LOGERROR, __FUNCTION__": ReleaseBuffer failed (%i)", hr);
@@ -669,11 +665,22 @@ void CWin32WASAPI::WaitCompletion()
 //***********************************************************************************************
 void CWin32WASAPI::AddDataToBuffer(unsigned char* pData, unsigned int len, unsigned char* pOut)
 {
-  // Remap the data to the correct channels
-  if(m_remap.CanRemap() && !m_bPassthrough)
-    m_remap.Remap((void*)pData, pOut, len / m_uiBytesPerSrcFrame, m_drc);
+  if (!m_bPassthrough)
+  {
+    if(m_remap.CanRemap())
+    {
+      m_remap.Remap((void*)pData, pOut, len / m_uiBytesPerSrcFrame, m_drc, m_nCurrentVolume);
+    }
+    else
+    {
+      memcpy(pOut, pData, len);
+      m_pcmAmplifier.DeAmplify((short*)pOut, len / 2);
+    }
+  }
   else
+  {
     memcpy(pOut, pData, len);
+  }
 }
 
 //***********************************************************************************************
